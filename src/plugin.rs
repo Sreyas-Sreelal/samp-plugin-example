@@ -1,14 +1,26 @@
+use memcache::Client;
+use samp_sdk::amx::{AmxResult, AMX};
 use samp_sdk::consts::*;
 use samp_sdk::types::Cell;
-use samp_sdk::amx::{AmxResult, AMX};
-
-use memcache::Client;
+use samp_sdk::{define_native, expand_args, get_string, log, natives, set_string};
 
 define_native!(connect, address: String);
 define_native!(get, connection: usize, key: String, value: ref Cell);
 define_native!(get_string, connection: usize, key: String, value: ref Cell, size: usize);
-define_native!(set, connection: usize, key: String, value: Cell, expire: u32);
-define_native!(set_string, connection: usize, key: String, value: String, expire: u32);
+define_native!(
+    set,
+    connection: usize,
+    key: String,
+    value: Cell,
+    expire: u32
+);
+define_native!(
+    set_string,
+    connection: usize,
+    key: String,
+    value: String,
+    expire: u32
+);
 define_native!(delete, connection: usize, key: String);
 define_native!(increment, connection: usize, key: String, value: Cell);
 
@@ -18,15 +30,13 @@ pub struct Memcached {
 
 impl Memcached {
     pub fn load(&self) -> bool {
-        return true;
+        true
     }
 
-    pub fn unload(&self) {
-        
-    }
+    pub fn unload(&self) {}
 
     pub fn amx_load(&mut self, amx: &mut AMX) -> Cell {
-        let natives = natives!{
+        let natives = natives! {
             "Memcached_Connect" => connect,
             "Memcached_Set" => set,
             "Memcached_SetString" => set_string,
@@ -53,7 +63,7 @@ impl Memcached {
             Ok(client) => {
                 self.clients.push(client);
                 Ok(self.clients.len() as Cell - 1)
-            },
+            }
             Err(_) => Ok(-1),
         }
     }
@@ -64,24 +74,7 @@ impl Memcached {
                 Ok(Some(data)) => {
                     *value = data;
                     Ok(1)
-                },
-                Ok(None) => Ok(0),
-                Err(_) => Ok(-1)
-            }
-        } else {
-            Ok(-2)
-        }
-    }
-
-    pub fn get_string(&mut self, _: &AMX, con: usize, key: String, string: &mut Cell, size: usize)
-            -> AmxResult<Cell> {
-        if con < self.clients.len() {
-            match self.clients[con].get::<String>(key.as_str()) {
-                Ok(Some(data)) => {
-                    let encoded = samp_sdk::cp1251::encode(&data)?;
-                    set_string!(encoded, string, size);
-                    Ok(1)
-                },
+                }
                 Ok(None) => Ok(0),
                 Err(_) => Ok(-1),
             }
@@ -90,20 +83,55 @@ impl Memcached {
         }
     }
 
-    pub fn set(&mut self, _: &AMX, con: usize, key: String, value: Cell, expire: u32) 
-            -> AmxResult<Cell> {
+    pub fn get_string(
+        &mut self,
+        _: &AMX,
+        con: usize,
+        key: String,
+        string: &mut Cell,
+        size: usize,
+    ) -> AmxResult<Cell> {
         if con < self.clients.len() {
-            match self.clients[con].set(key.as_str(), value, expire) {
-                Ok(_) => Ok(1),
-                Err(_) => Ok(-1)
+            match self.clients[con].get::<String>(key.as_str()) {
+                Ok(Some(data)) => {
+                    let encoded = samp_sdk::cp1251::encode(&data)?;
+                    set_string!(encoded, string, size);
+                    Ok(1)
+                }
+                Ok(None) => Ok(0),
+                Err(_) => Ok(-1),
             }
         } else {
             Ok(-2)
         }
     }
 
-    pub fn set_string(&mut self, _: &AMX, con: usize, key: String, value: String, expire: u32)
-            -> AmxResult<Cell> {
+    pub fn set(
+        &mut self,
+        _: &AMX,
+        con: usize,
+        key: String,
+        value: Cell,
+        expire: u32,
+    ) -> AmxResult<Cell> {
+        if con < self.clients.len() {
+            match self.clients[con].set(key.as_str(), value, expire) {
+                Ok(_) => Ok(1),
+                Err(_) => Ok(-1),
+            }
+        } else {
+            Ok(-2)
+        }
+    }
+
+    pub fn set_string(
+        &mut self,
+        _: &AMX,
+        con: usize,
+        key: String,
+        value: String,
+        expire: u32,
+    ) -> AmxResult<Cell> {
         if con < self.clients.len() {
             match self.clients[con].set(key.as_str(), value.as_str(), expire) {
                 Ok(_) => Ok(1),
@@ -114,8 +142,7 @@ impl Memcached {
         }
     }
 
-    pub fn increment(&mut self, _: &AMX, con: usize, key: String, value: Cell)
-            -> AmxResult<Cell> {
+    pub fn increment(&mut self, _: &AMX, con: usize, key: String, value: Cell) -> AmxResult<Cell> {
         if con < self.clients.len() {
             match self.clients[con].increment(key.as_str(), value as u64) {
                 Ok(_) => Ok(1),
